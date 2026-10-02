@@ -5,7 +5,7 @@
 
 ## Objetivo da atividade
 
-Nessa fase o objetivo era transformar o protótipo interativo do Flui em um aplicativo funcional de verdade, implementando um mapa interativo com google maps, fichas de ponto com dados simulados e com os filtros de busca funcionando.
+Nessa fase o objetivo é a entrega final do aplicativo flui com todas as funcionalidades principais propostas, mapa interativo, ficha detalhada, filtros de busca, sistema de avaliação, favoritos e histórico funcionando.
 
 ## YOUTUBE LINK
 
