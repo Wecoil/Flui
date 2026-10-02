@@ -28,7 +28,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    maxHeight: "61%",
+    height: "61%",
+    maxHeight: "75%",
     backgroundColor: "#fff",
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
@@ -42,5 +43,5 @@ const styles = StyleSheet.create({
   closed: { height: 52, maxHeight: 52 },
   handleArea: { height: 42, alignItems: "center", justifyContent: "center", gap: 2 },
   handle: { width: 42, height: 4, borderRadius: 4, backgroundColor: "#d1d5db" },
-  body: { maxHeight: 380 },
+  body: { flex: 1, minHeight: 0 },
 });

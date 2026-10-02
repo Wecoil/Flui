@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View, Image } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import * as Location from "expo-location";
-import { Clock, DollarSign, MapPin, Star, X, Zap } from "lucide-react-native";
+import { Clock, DollarSign, Heart, MapPin, Star, X, Zap } from "lucide-react-native";
 
 export interface Station {
   id: number;
@@ -93,6 +94,9 @@ export const stations: Station[] = [
   },
 ];
 
+type StationReview = { id: string; stationId: number; rating: number; comment: string; createdAt: string };
+const REVIEWS_STORAGE_KEY = "@flui/station-reviews";
+
 const initialRegion: Region = {
   latitude: -23.5505,
   longitude: -46.6333,
@@ -104,14 +108,40 @@ export default function AppMap({
   selectedStation,
   routeActive,
   onStationSelect,
+  favoriteIds,
+  onToggleFavorite,
 }: {
   selectedStation: number | null;
   routeActive: boolean;
   onStationSelect: (id: number | null) => void;
+  favoriteIds: number[];
+  onToggleFavorite: (id: number) => void;
 }) {
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationPermission, setLocationPermission] = useState(false);
   const [activeStation, setActiveStation] = useState<Station | null>(null);
+  const [reviews, setReviews] = useState<StationReview[]>([]);
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
+  const [draftRating, setDraftRating] = useState(5);
+  const [draftComment, setDraftComment] = useState("");
+
+  useEffect(() => {
+    AsyncStorage.getItem(REVIEWS_STORAGE_KEY)
+      .then((value) => {
+        if (!value) return;
+        const parsed: unknown = JSON.parse(value);
+        if (Array.isArray(parsed)) setReviews(parsed as StationReview[]);
+      })
+      .catch((error) => console.warn("Não foi possível carregar as avaliações:", error))
+      .finally(() => setReviewsLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!reviewsLoaded) return;
+    AsyncStorage.setItem(REVIEWS_STORAGE_KEY, JSON.stringify(reviews)).catch((error) =>
+      console.warn("Não foi possível salvar as avaliações:", error)
+    );
+  }, [reviews, reviewsLoaded]);
 
   useEffect(() => {
     (async () => {
@@ -128,8 +158,36 @@ export default function AppMap({
 
   const openStation = (station: Station) => {
     onStationSelect(station.id);
+    setDraftRating(5);
+    setDraftComment("");
     setActiveStation(station);
   };
+
+  const submitReview = () => {
+    if (!activeStation) return;
+    const comment = draftComment.trim();
+    if (!comment) {
+      Alert.alert("Comentário necessário", "Escreva um comentário antes de enviar sua avaliação.");
+      return;
+    }
+    const review: StationReview = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      stationId: activeStation.id,
+      rating: draftRating,
+      comment,
+      createdAt: new Date().toISOString(),
+    };
+    setReviews((current) => [review, ...current]);
+    setDraftComment("");
+    setDraftRating(5);
+    Alert.alert("Avaliação enviada", "Obrigado por compartilhar sua experiência!");
+  };
+
+  const stationReviews = activeStation ? reviews.filter((review) => review.stationId === activeStation.id) : [];
+  const totalRating = activeStation
+    ? (activeStation.rating * activeStation.reviews + stationReviews.reduce((sum, review) => sum + review.rating, 0)) / (activeStation.reviews + stationReviews.length)
+    : 0;
+  const totalReviews = activeStation ? activeStation.reviews + stationReviews.length : 0;
 
   return (
     <View style={styles.container}>
@@ -208,16 +266,61 @@ export default function AppMap({
               <Pressable style={styles.close} onPress={() => setActiveStation(null)}>
                 <X size={20} color="#111827" />
               </Pressable>
-              <View style={styles.stationBody}>
-                <Text style={styles.stationTitle}>{activeStation.name}</Text>
-                <Text style={styles.address}>{activeStation.address}</Text>
-                <View style={styles.row}>
-                  <View style={styles.stat}><Zap size={16} color="#0f766e" /><Text>{activeStation.available}/{activeStation.total}</Text></View>
-                  <View style={styles.stat}><Clock size={16} color="#6b7280" /><Text>{activeStation.time}</Text></View>
-                  <View style={styles.stat}><DollarSign size={16} color="#6b7280" /><Text>{activeStation.price}</Text></View>
-                </View>
-                <View style={styles.rating}><Star size={16} color="#f59e0b" fill="#f59e0b" /><Text style={{fontWeight:"700"}}>{activeStation.rating}</Text><Text style={{color:"#6b7280"}}>({activeStation.reviews})</Text><Text style={{marginLeft:"auto", color:"#0f766e"}}>{activeStation.hours}</Text></View>
-              </View>
+              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalContent}>
+                <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                  <View style={styles.stationBody}>
+                    <View style={styles.stationTitleRow}><View style={{ flex: 1 }}><Text style={styles.stationTitle}>{activeStation.name}</Text></View><Pressable onPress={() => onToggleFavorite(activeStation.id)} style={styles.modalFavorite} accessibilityRole="button" accessibilityLabel={favoriteIds.includes(activeStation.id) ? "Remover dos favoritos" : "Adicionar aos favoritos"}><Heart size={23} color={favoriteIds.includes(activeStation.id) ? "#e11d48" : "#9ca3af"} fill={favoriteIds.includes(activeStation.id) ? "#e11d48" : "transparent"} /></Pressable></View>
+                    <Text style={styles.address}>{activeStation.address}</Text>
+                    <View style={styles.row}>
+                      <View style={styles.stat}><Zap size={16} color="#0f766e" /><Text>{activeStation.available}/{activeStation.total}</Text></View>
+                      <View style={styles.stat}><Clock size={16} color="#6b7280" /><Text>{activeStation.time}</Text></View>
+                      <View style={styles.stat}><DollarSign size={16} color="#6b7280" /><Text>{activeStation.price}</Text></View>
+                    </View>
+                    <View style={styles.rating}><Star size={16} color="#f59e0b" fill="#f59e0b" /><Text style={{fontWeight:"700"}}>{totalRating.toFixed(1)}</Text><Text style={{color:"#6b7280"}}>({totalReviews} avaliações)</Text><Text style={{marginLeft:"auto", color:"#0f766e"}}>{activeStation.hours}</Text></View>
+
+                    <View style={styles.reviewSection}>
+                      <Text style={styles.sectionTitle}>Avalie esta estação</Text>
+                      <Text style={styles.helperText}>Como foi sua experiência? Escolha uma nota de 1 a 5 estrelas.</Text>
+                      <View style={styles.starPicker}>
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <Pressable key={value} onPress={() => setDraftRating(value)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${value} ${value === 1 ? "estrela" : "estrelas"}`}>
+                            <Star size={32} color="#f59e0b" fill={value <= draftRating ? "#f59e0b" : "transparent"} />
+                          </Pressable>
+                        ))}
+                      </View>
+                      <TextInput
+                        value={draftComment}
+                        onChangeText={setDraftComment}
+                        placeholder="Conte como foi o atendimento, a disponibilidade dos carregadores..."
+                        placeholderTextColor="#9ca3af"
+                        multiline
+                        textAlignVertical="top"
+                        maxLength={500}
+                        style={styles.commentInput}
+                      />
+                      <Text style={styles.characterCount}>{draftComment.length}/500</Text>
+                      <Pressable onPress={submitReview} style={styles.submitReview} accessibilityRole="button">
+                        <Text style={styles.submitReviewText}>Enviar avaliação</Text>
+                      </Pressable>
+                    </View>
+
+                    <View style={styles.reviewListSection}>
+                      <Text style={styles.sectionTitle}>Comentários ({stationReviews.length})</Text>
+                      {stationReviews.length === 0 ? (
+                        <Text style={styles.noReviews}>Ainda não há comentários enviados por usuários. Seja o primeiro a avaliar!</Text>
+                      ) : stationReviews.slice(0, 10).map((review) => (
+                        <View key={review.id} style={styles.reviewCard}>
+                          <View style={styles.reviewCardTop}>
+                            <View style={styles.reviewStars}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} size={14} color="#f59e0b" fill={value <= review.rating ? "#f59e0b" : "transparent"} />)}</View>
+                            <Text style={styles.reviewDate}>{new Date(review.createdAt).toLocaleDateString("pt-BR")}</Text>
+                          </View>
+                          <Text style={styles.reviewComment}>{review.comment}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </ScrollView>
+              </KeyboardAvoidingView>
             </View>
           </View>
         )}
@@ -255,13 +358,31 @@ const styles = StyleSheet.create({
     width: 40, height: 40, alignItems: "center", justifyContent: "center", elevation: 3,
   },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,.35)", justifyContent: "flex-end" },
-  stationCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" },
+  stationCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden", maxHeight: "88%" },
+  modalContent: { flexShrink: 1 },
   stationImage: { width: "100%", height: 170 },
   close: { position: "absolute", right: 14, top: 14, backgroundColor: "#fff", width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   stationBody: { padding: 18, paddingBottom: 28 },
+  stationTitleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  modalFavorite: { padding: 8, backgroundColor: "#fff1f2", borderRadius: 12 },
   stationTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
   address: { color: "#6b7280", marginTop: 4 },
   row: { flexDirection: "row", gap: 12, marginTop: 18 },
   stat: { flexDirection: "row", gap: 5, alignItems: "center", backgroundColor: "#f3f4f6", padding: 8, borderRadius: 10 },
   rating: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14 },
+  reviewSection: { marginTop: 22, paddingTop: 18, borderTopWidth: 1, borderTopColor: "#e5e7eb" },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#111827" },
+  helperText: { color: "#6b7280", fontSize: 12, lineHeight: 18, marginTop: 5 },
+  starPicker: { flexDirection: "row", gap: 10, marginTop: 14, marginBottom: 14 },
+  commentInput: { minHeight: 100, borderWidth: 1, borderColor: "#d1d5db", borderRadius: 12, padding: 12, color: "#111827", fontSize: 14, backgroundColor: "#fff" },
+  characterCount: { color: "#9ca3af", fontSize: 11, textAlign: "right", marginTop: 5 },
+  submitReview: { backgroundColor: "#0f766e", borderRadius: 12, paddingVertical: 13, alignItems: "center", marginTop: 10 },
+  submitReviewText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  reviewListSection: { marginTop: 22, paddingTop: 18, borderTopWidth: 1, borderTopColor: "#e5e7eb", gap: 10 },
+  noReviews: { color: "#6b7280", fontSize: 13, lineHeight: 19, marginTop: 4 },
+  reviewCard: { backgroundColor: "#f9fafb", borderRadius: 12, padding: 12, gap: 8 },
+  reviewCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  reviewStars: { flexDirection: "row", gap: 2 },
+  reviewDate: { color: "#9ca3af", fontSize: 11 },
+  reviewComment: { color: "#374151", fontSize: 13, lineHeight: 19 },
 });
