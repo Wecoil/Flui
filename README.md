@@ -9,13 +9,15 @@ Nessa fase o objetivo é a entrega final do aplicativo flui com todas as funcion
 
 ## YOUTUBE LINK
 
-https://youtu.be/RM65Ig18ofg
+Vídeo Pitch: https://youtu.be/JibmvJZWbz0
 
 ## Ferramentas utilizadas
 
 Visual Studio Code, Node.JS, Android Studio
 
 ## INSTRUÇÕES PARA AQUELES QUE QUEREM RODAR O PROJETO PURO
+
+Vídeo de funcionamento: https://youtu.be/RM65Ig18ofg
 
 Siga estas instruções simples para configurar o ambiente e testar a plataforma:
 
