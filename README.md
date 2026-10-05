@@ -17,7 +17,7 @@ Visual Studio Code, Node.JS, Android Studio
 
 ## INSTRUÇÕES PARA AQUELES QUE QUEREM RODAR O PROJETO PURO
 
-Vídeo de funcionamento: https://youtu.be/RM65Ig18ofg
+Vídeo de funcionamento: https://youtu.be/YzLS7JdKRBw
 
 Siga estas instruções simples para configurar o ambiente e testar a plataforma:
 
